@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Data Center Cooling Calculator</title>
+<title>Data Center Cooling Calculator with Comparison Tab</title>
 <style>
   body {
     font-family: Arial, sans-serif;
@@ -26,7 +26,7 @@
     background: #eee;
     font-size: 16px;
     transition: background 0.3s;
-    color: black; /* Make tab text black */
+    color: black;
   }
   .tab-button:hover {
     background: #ddd;
@@ -35,16 +35,17 @@
     background: white;
     border-bottom: 3px solid #007bff;
     font-weight: bold;
-    color: black; /* Ensure active tab text remains black */
+    color: black;
   }
   .tab-content {
     display: none;
     padding: 20px;
     background: white;
-    max-width: 700px;
+    max-width: 900px;
     margin: 20px auto;
     border-radius: 8px;
     box-shadow: 0 0 10px #ccc;
+    min-height: 400px;
   }
   .tab-content.active {
     display: block;
@@ -54,7 +55,7 @@
     margin-top: 15px;
     font-weight: bold;
   }
-  input {
+  input, select {
     width: 100%;
     padding: 8px;
     margin-top: 5px;
@@ -73,13 +74,38 @@
   button:hover {
     background: #0056b3;
   }
-  pre {
+  #excelButtonDetails {
+    background: #28a745;
+    margin-left: 10px;
+  }
+  #excelButtonDetails:hover {
+    background: #1e7e34;
+  }
+  #oatInputContainer {
     margin-top: 20px;
+  }
+  pre {
     white-space: pre-wrap;
     font-family: monospace;
     background: #f0f0f0;
     padding: 15px;
     border-radius: 6px;
+    height: 100%;
+    overflow-y: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+  th, td {
+    border: 1px solid #aaa;
+    padding: 8px;
+    text-align: center;
+  }
+  th {
+    background-color: #007bff;
+    color: white;
   }
 </style>
 </head>
@@ -88,124 +114,345 @@
 <header>Data Center Cooling Calculator</header>
 
 <div class="tabs">
-  <button class="tab-button active" data-tab="crac">CRAC Method - 100% Recirculated Air</button>
-  <!-- Future tabs can be added here -->
+  <button class="tab-button active" data-tab="known">Known Inputs</button>
+  <button class="tab-button" data-tab="cooling">Cooling Method</button>
+  <button class="tab-button" data-tab="details">Calculation Details</button>
+  <button class="tab-button" data-tab="comparison">Comparison</button>
 </div>
 
-<div id="crac" class="tab-content active">
-  <h2>CRAC Method - 100% Recirculated Air</h2>
+<!-- Known Inputs Tab -->
+<div id="known" class="tab-content active">
+  <h2>Known Inputs (Enter data here)</h2>
 
-  <label for="utilityPower">Available Utility Power (kW):</label>
-  <input type="number" id="utilityPower" step="1" placeholder="e.g. 1500" />
+  <label for="utilityPowerKnown">Available Utility Power (kW):</label>
+  <input type="number" id="utilityPowerKnown" step="1" placeholder="e.g. 1500 (optional)" />
 
-  <label for="hallSize">Size of Data Hall (sq ft):</label>
-  <input type="number" id="hallSize" step="1" placeholder="e.g. 10000" />
+  <label for="hallSizeKnown">Size of Data Hall (sq ft):</label>
+  <input type="number" id="hallSizeKnown" step="1" placeholder="e.g. 10000 (optional)" />
 
-  <label for="rackCount">Number of Racks:</label>
-  <input type="number" id="rackCount" step="1" placeholder="e.g. 50" />
+  <label for="rackCountKnown">Number of Racks:</label>
+  <input type="number" id="rackCountKnown" step="1" placeholder="e.g. 50 (required if no utility power)" />
 
-  <label for="kwPerRack">Desired kW per Rack:</label>
-  <input type="number" id="kwPerRack" step="0.1" placeholder="e.g. 15" />
+  <label for="kwPerRackKnown">Desired kW per Rack:</label>
+  <input type="number" id="kwPerRackKnown" step="0.1" placeholder="e.g. 15 (required if no utility power)" />
 
-  <label for="hat">Hot Air Return Temperature (HAT) °F:</label>
-  <input type="number" id="hat" step="0.1" placeholder="e.g. 95" />
+  <label for="hatKnown">Hot Air Return Temperature (HAT) °F:</label>
+  <input type="number" id="hatKnown" step="0.1" placeholder="e.g. 95 (optional)" />
 
-  <label for="cat">Cold Aisle Supply Temperature (CAT) °F:</label>
-  <input type="number" id="cat" step="0.1" placeholder="e.g. 65" />
+  <label for="catKnown">Cold Aisle Supply Temperature (CAT) °F:</label>
+  <input type="number" id="catKnown" step="0.1" placeholder="e.g. 65 (optional)" />
 
-  <button onclick="calculateCooling()">Calculate Cooling Load</button>
-
-  <pre id="output"></pre>
+  <button id="nextButton" onclick="goToCoolingMethod()">Next</button>
 </div>
+
+<!-- Cooling Method Tab -->
+<div id="cooling" class="tab-content">
+  <h2>Cooling Method</h2>
+
+  <label for="airMethod">Select Air Method:</label>
+  <select id="airMethod">
+    <option value="recirculated">100% Recirculated air</option>
+    <option value="mixed">Mixed air (accounts for outdoor climate)</option>
+  </select>
+
+  <div id="oatInputContainer" style="display:none;">
+    <label for="maxOAT">Maximum Outdoor Air Temperature (Max OAT) °F:</label>
+    <input type="number" id="maxOAT" step="0.1" placeholder="Enter hottest outdoor air temp" />
+  </div>
+
+  <div>
+    <button id="showDetailsBtn" onclick="performCalculationAndShowDetails()">Show Calculation Details</button>
+  </div>
+
+</div>
+
+<!-- Calculation Details Tab -->
+<div id="details" class="tab-content">
+  <h2>Calculation Details</h2>
+  <button id="excelButtonDetails" onclick="downloadExcelDetails()" disabled>Download Excel Report</button>
+  <pre id="outputDetails" style="height: 550px; margin-top: 15px;"></pre>
+</div>
+
+<!-- Comparison Tab -->
+<div id="comparison" class="tab-content">
+  <h2>Comparison of Cooling Methods</h2>
+  <button onclick="performComparison()">Refresh Comparison</button>
+  <div id="comparisonResults" style="margin-top: 20px;"></div>
+</div>
+
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
 <script>
-  // Tab switching logic
+document.addEventListener('DOMContentLoaded', () => {
+  // Tab switching
   document.querySelectorAll('.tab-button').forEach(button => {
     button.addEventListener('click', () => {
       document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
 
       button.classList.add('active');
-      document.getElementById(button.getAttribute('data-tab')).classList.add('active');
+      const tabId = button.getAttribute('data-tab');
+      document.getElementById(tabId).classList.add('active');
     });
   });
 
-  // Cooling calculation with friendly explanation
-  function calculateCooling() {
-    const utility = parseFloat(document.getElementById('utilityPower').value);
-    const size = parseFloat(document.getElementById('hallSize').value);
-    const racks = parseInt(document.getElementById('rackCount').value);
-    const kwPerRack = parseFloat(document.getElementById('kwPerRack').value);
-    const hat = parseFloat(document.getElementById('hat').value);
-    const cat = parseFloat(document.getElementById('cat').value);
+  // Show/hide OAT input based on air method
+  document.getElementById('airMethod').addEventListener('change', () => {
+    const val = document.getElementById('airMethod').value;
+    const container = document.getElementById('oatInputContainer');
+    if (val === 'mixed') {
+      container.style.display = 'block';
+    } else {
+      container.style.display = 'none';
+      document.getElementById('maxOAT').value = '';
+    }
+  });
 
-    if (
-      isNaN(utility) || utility <= 0 ||
-      isNaN(size) || size <= 0 ||
-      isNaN(racks) || racks <= 0 ||
-      isNaN(kwPerRack) || kwPerRack <= 0 ||
-      isNaN(hat) || isNaN(cat) || hat <= cat
-    ) {
-      alert("⚠️ Please enter valid positive numbers and ensure Hot Air Return Temp is greater than Cold Aisle Supply Temp.");
+  window.goToCoolingMethod = function() {
+    switchTab('cooling');
+  };
+
+  window.switchTab = function(tabId) {
+    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+
+    document.querySelector(`.tab-button[data-tab="${tabId}"]`).classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+  };
+
+  window.performCalculationAndShowDetails = function() {
+    const airMethod = document.getElementById('airMethod').value;
+
+    const utility = parseFloat(document.getElementById('utilityPowerKnown').value);
+    const size = parseFloat(document.getElementById('hallSizeKnown').value);
+    const racks = parseInt(document.getElementById('rackCountKnown').value);
+    const kwPerRack = parseFloat(document.getElementById('kwPerRackKnown').value);
+    let hat = parseFloat(document.getElementById('hatKnown').value);
+    let cat = parseFloat(document.getElementById('catKnown').value);
+
+    let details = `Calculation Details\n===================\n\n`;
+
+    if (airMethod === 'mixed') {
+      const maxOAT = parseFloat(document.getElementById('maxOAT').value);
+
+      if (isNaN(maxOAT)) {
+        alert("Please enter a valid Maximum Outdoor Air Temperature for Mixed Air method.");
+        return;
+      }
+      if (isNaN(cat)) {
+        alert("Supply Air Temperature (CAT) is required for Mixed Air calculation.");
+        return;
+      }
+
+      const deltaT = maxOAT - cat;
+      if (deltaT <= 0) {
+        alert("Warning: Maximum Outdoor Air Temperature should be greater than Cold Aisle Temperature for a valid delta T calculation.");
+        return;
+      }
+
+      details += `Air Method Selected: Mixed Air (accounts for outdoor climate)\n\n`;
+      details += `Outdoor Air Temperature entered by user: ${maxOAT.toFixed(1)} °F\n\n`;
+      details += `Supply Air Temperature (CAT): ${cat.toFixed(1)} °F\n\n`;
+      details += `Temperature difference ΔT = Maximum OAT - CAT = ${maxOAT.toFixed(1)} - ${cat.toFixed(1)} = ${deltaT.toFixed(1)} °F\n\n`;
+
+      let totalKW = null;
+      if (!isNaN(utility) && utility > 0) {
+        totalKW = utility * 0.80;
+        details += `Calculating IT Load using utility power:\nTotal IT Load (kW) = Utility Power × 0.80 = ${utility.toFixed(1)} × 0.80 = ${totalKW.toFixed(1)} kW\n\n`;
+      } else if (!isNaN(racks) && racks > 0 && !isNaN(kwPerRack) && kwPerRack > 0) {
+        totalKW = racks * kwPerRack;
+        details += `Calculating IT Load using racks and kW per rack:\nTotal IT Load (kW) = Number of racks × kW per rack = ${racks} × ${kwPerRack.toFixed(1)} = ${totalKW.toFixed(1)} kW\n\n`;
+      } else {
+        alert("Missing inputs for IT load calculation: provide utility power or racks and kW per rack.");
+        return;
+      }
+
+      const btuPerKW = 3412.14163;
+      const airFactor = 1.08;
+
+      const totalBTUhr = totalKW * btuPerKW * 0.80;
+      details += `Convert IT Load to Heat Load (Q):\nQ = IT Load × 3412.14 × 0.80 = ${totalKW.toFixed(1)} × 3412.14 × 0.80 = ${totalBTUhr.toFixed(0)} BTU/hr\n\n`;
+
+      const requiredCFM = totalBTUhr / (airFactor * deltaT);
+      details += `Calculate Required Airflow (CFM):\nCFM = Q / (1.08 × ΔT) = ${totalBTUhr.toFixed(0)} / (1.08 × ${deltaT.toFixed(1)}) = ${requiredCFM.toFixed(0)} CFM\n\n`;
+
+      // Additional Information: Chilled Water Sizing
+      details += "Additional Information:\n------------------------\n";
+      details += "Chilled Water Sizing Calculation:\n";
+
+      const waterFactor = 500;
+      const gpm = totalBTUhr / (waterFactor * deltaT);
+      details += `Q (BTU/hr) = GPM × 500 × ΔT\n`;
+      details += `Solving for GPM:\nGPM = Q / (500 × ΔT) = ${totalBTUhr.toFixed(0)} / (500 × ${deltaT.toFixed(1)}) = ${gpm.toFixed(2)} gallons per minute\n\n`;
+
+      details += "Source Notes:\n- The air factor 1.08 is based on the density and specific heat of air.\n- The 80% factor accounts for typical utilization of available power.\n- The water factor 500 is based on standard chilled water properties.\n- Formulas are based on standard HVAC and ASHRAE methodologies.\n";
+
+      lastDetailsText = details;
+      document.getElementById('outputDetails').textContent = details;
+      document.getElementById('excelButtonDetails').disabled = false;
+      switchTab('details');
+
+    } else {
+      // Recirculated air calculation with full details
+
+      const btuPerKW = 3412.14163;
+      const utilizationFactor = 0.80;
+      const airFactor = 1.08;
+
+      details += `Air Method Selected: 100% Recirculated Air\n\n`;
+      let totalKW = null;
+
+      if (!isNaN(utility) && utility > 0) {
+        totalKW = utility * utilizationFactor;
+        details += `1. Calculate IT Load from available utility power:\n   IT Load (kW) = Utility Power × 0.80 = ${utility.toFixed(1)} × 0.80 = ${totalKW.toFixed(1)} kW\n\n`;
+      } else if (!isNaN(racks) && racks > 0 && !isNaN(kwPerRack) && kwPerRack > 0) {
+        totalKW = racks * kwPerRack;
+        details += `1. Calculate IT Load from rack count and power per rack:\n   IT Load (kW) = Number of Racks × kW per Rack = ${racks} × ${kwPerRack.toFixed(1)} = ${totalKW.toFixed(1)} kW\n\n`;
+      } else {
+        alert("Missing inputs for IT load calculation: provide utility power or racks and kW per rack.");
+        return;
+      }
+
+      const totalBTUhr = totalKW * btuPerKW;
+      const effectiveBTUhr = totalBTUhr * utilizationFactor;
+      details += `2. Convert IT Load to Heat Load (BTU/hr):\n   Total BTU/hr = IT Load × 3412.14 = ${totalKW.toFixed(1)} × 3412.14 = ${totalBTUhr.toFixed(0)} BTU/hr\n\n`;
+      details += `3. Apply utilization factor (80%):\n   Effective Heat Load = ${totalBTUhr.toFixed(0)} × 0.80 = ${effectiveBTUhr.toFixed(0)} BTU/hr\n\n`;
+
+      if (!isNaN(hat) && !isNaN(cat) && hat > cat) {
+        const deltaT = hat - cat;
+        const requiredCFM = effectiveBTUhr / (airFactor * deltaT);
+        details += `4. Calculate Temperature Difference (ΔT):\n   ΔT = Hot Air Return Temp (HAT) - Cold Aisle Temp (CAT) = ${hat.toFixed(1)} - ${cat.toFixed(1)} = ${deltaT.toFixed(1)} °F\n\n`;
+        details += `5. Calculate Required Airflow (CFM):\n   CFM = Heat Load / (Air Factor × ΔT) = ${effectiveBTUhr.toFixed(0)} / (1.08 × ${deltaT.toFixed(1)}) = ${requiredCFM.toFixed(0)} CFM\n\n`;
+      } else {
+        details += "ERROR: Please ensure Hot Air Return Temp (HAT) is greater than Cold Aisle Temp (CAT) for airflow calculation.\n";
+      }
+
+      details += "Source Notes:\n- Air factor of 1.08 accounts for air properties.\n- 80% utilization factor reflects typical usage assumptions.\n- Equations based on ASHRAE fundamentals and HVAC engineering principles.\n";
+
+      lastDetailsText = details;
+      document.getElementById('outputDetails').textContent = details;
+      document.getElementById('excelButtonDetails').disabled = false;
+      switchTab('details');
+    }
+  };
+
+  window.downloadExcelDetails = function() {
+    if (!lastDetailsText) {
+      alert("No calculation details to export. Please perform calculation first.");
       return;
     }
+    const rows = lastDetailsText.split('\n').map(line => [line]);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Calculation Details');
+    XLSX.writeFile(wb, 'DataCenterCoolingCalculationDetails.xlsx');
+  };
 
-    const deltaT = hat - cat; // °F temperature difference
-    const btuPerKW = 3412.14163; // 1 kilowatt = 3412.14163 BTU/hr
-    const utilizationFactor = 0.80; // Assume racks run at 80% capacity
-    const btuPerTon = 12000; // 1 ton of cooling = 12,000 BTU/hr
-    const airFactor = 1.08; // This is a constant used to relate airflow and heat transfer
+  window.performComparison = function() {
+    const utility = parseFloat(document.getElementById('utilityPowerKnown').value);
+    const racks = parseInt(document.getElementById('rackCountKnown').value);
+    const kwPerRack = parseFloat(document.getElementById('kwPerRackKnown').value);
+    let hat = parseFloat(document.getElementById('hatKnown').value);
+    let cat = parseFloat(document.getElementById('catKnown').value);
+    const maxOAT = parseFloat(document.getElementById('maxOAT').value);
 
-    // Step 1: Calculate total IT power load in kilowatts
-    const totalKW = racks * kwPerRack;
+    // Calculate Recirculated Air method values
+    const recirc = calculateRecirculatedComparison(utility, racks, kwPerRack, hat, cat);
 
-    // Step 2: Convert total kW load to BTU per hour (a unit of heat energy)
+    // Calculate Mixed Air method values
+    const mixed = calculateMixedComparison(utility, racks, kwPerRack, cat, maxOAT);
+
+    // Build HTML table to show side-by-side
+    let html = '<table><thead><tr><th>Parameter</th><th>100% Recirculated Air</th><th>Mixed Air</th></tr></thead><tbody>';
+
+    function formatVal(val, unit) {
+      if (val === null || val === undefined || isNaN(val)) return 'N/A';
+      if (unit === 'kW') return val.toFixed(1) + ' kW';
+      if (unit === 'BTU/hr') return val.toFixed(0) + ' BTU/hr';
+      if (unit === '°F') return val.toFixed(1) + ' °F';
+      if (unit === 'CFM') return val.toFixed(0) + ' CFM';
+      return val;
+    }
+
+    // Highlight the lower CFM cell
+    const recircCFM = recirc.requiredCFM;
+    const mixedCFM = mixed.requiredCFM;
+
+    let recircCFMStyle = '';
+    let mixedCFMStyle = '';
+
+    if (!isNaN(recircCFM) && !isNaN(mixedCFM)) {
+      if (recircCFM < mixedCFM) {
+        recircCFMStyle = 'background-color: #d4edda;';  // light green
+      } else if (mixedCFM < recircCFM) {
+        mixedCFMStyle = 'background-color: #d4edda;';
+      }
+    }
+
+    html += `<tr><td><b>Total IT Load</b></td><td>${formatVal(recirc.totalKW, 'kW')}</td><td>${formatVal(mixed.totalKW, 'kW')}</td></tr>`;
+    html += `<tr><td><b>Heat Load (BTU/hr)</b></td><td>${formatVal(recirc.effectiveBTUhr, 'BTU/hr')}</td><td>${formatVal(mixed.totalBTUhr, 'BTU/hr')}</td></tr>`;
+    html += `<tr><td><b>Delta T (°F)</b></td><td>${formatVal(recirc.deltaT, '°F')}</td><td>${formatVal(mixed.deltaT, '°F')}</td></tr>`;
+    html += `<tr><td><b>Required Airflow (CFM)</b></td><td style="${recircCFMStyle}">${formatVal(recircCFM, 'CFM')}</td><td style="${mixedCFMStyle}">${formatVal(mixedCFM, 'CFM')}</td></tr>`;
+
+    html += '</tbody></table>';
+
+    document.getElementById('comparisonResults').innerHTML = html;
+  };
+
+  // Recirculated air method calculation for comparison tab
+  function calculateRecirculatedComparison(utility, racks, kwPerRack, hat, cat) {
+    const btuPerKW = 3412.14163;
+    const utilizationFactor = 0.80;
+    const airFactor = 1.08;
+
+    let totalKW = null;
+    if (!isNaN(utility) && utility > 0) {
+      totalKW = utility * utilizationFactor;
+    } else if (!isNaN(racks) && racks > 0 && !isNaN(kwPerRack) && kwPerRack > 0) {
+      totalKW = racks * kwPerRack;
+    }
+
+    if (totalKW === null) return { totalKW: null, effectiveBTUhr: null, deltaT: null, requiredCFM: null };
+
     const totalBTUhr = totalKW * btuPerKW;
-
-    // Step 3: Apply utilization factor to reflect actual running load
     const effectiveBTUhr = totalBTUhr * utilizationFactor;
 
-    // Step 4: Convert heat load from BTU/hr to tons of cooling
-    const totalTons = effectiveBTUhr / btuPerTon;
+    let deltaT = null;
+    let requiredCFM = null;
+    if (!isNaN(hat) && !isNaN(cat) && hat > cat) {
+      deltaT = hat - cat;
+      requiredCFM = effectiveBTUhr / (airFactor * deltaT);
+    }
 
-    // Step 5: Calculate airflow needed in cubic feet per minute (CFM)
-    // Formula: CFM = Heat Load (BTU/hr) divided by (Air Factor × Temperature Difference)
-    const requiredCFM = effectiveBTUhr / (airFactor * deltaT);
-
-    // Compose a friendly explanation string
-    const explanation = `
-Step-by-Step Cooling Load Calculation:
-
-1) Calculate Total IT Load:
-   Multiply the number of racks by the power each rack uses.
-   Total IT Load = ${racks} racks × ${kwPerRack.toFixed(1)} kW/rack = ${totalKW.toFixed(1)} kW
-
-2) Convert kW to BTU per hour:
-   Cooling is about removing heat, so we convert electrical power to heat units.
-   1 kW = 3412.14 BTU/hr
-   Total Heat Load = ${totalKW.toFixed(1)} × 3412.14 = ${totalBTUhr.toFixed(0)} BTU/hr
-
-3) Apply Utilization Factor:
-   Servers rarely run at full power all the time; we assume 80% average load.
-   Effective Heat Load = ${totalBTUhr.toFixed(0)} × 0.80 = ${effectiveBTUhr.toFixed(0)} BTU/hr
-
-4) Convert Heat Load to Tons of Cooling:
-   Cooling capacity is often measured in tons; 1 ton = 12,000 BTU/hr.
-   Cooling Required = ${effectiveBTUhr.toFixed(0)} / 12,000 = ${totalTons.toFixed(2)} tons
-
-5) Calculate Required Airflow (CFM):
-   Airflow needed to remove this heat depends on the temperature difference between hot air return and cold aisle supply.
-   Formula: CFM = Heat Load / (Air Factor × Delta T)
-   Air Factor = 1.08 (a constant based on air properties)
-   Delta T = ${deltaT.toFixed(1)} °F
-   Therefore:
-   CFM = ${effectiveBTUhr.toFixed(0)} / (1.08 × ${deltaT.toFixed(1)}) = ${requiredCFM.toFixed(0)} CFM
-
-This means you need about ${requiredCFM.toFixed(0)} cubic feet of air per minute flowing through your data center to properly cool your equipment at the given temperatures.
-`;
-
-    document.getElementById('output').textContent = explanation;
+    return { totalKW, effectiveBTUhr, deltaT, requiredCFM };
   }
+
+  // Mixed air method calculation for comparison tab
+  function calculateMixedComparison(utility, racks, kwPerRack, cat, maxOAT) {
+    const btuPerKW = 3412.14163;
+    const utilizationFactor = 0.80;
+    const airFactor = 1.08;
+
+    let totalKW = null;
+    if (!isNaN(utility) && utility > 0) {
+      totalKW = utility * utilizationFactor;
+    } else if (!isNaN(racks) && racks > 0 && !isNaN(kwPerRack) && kwPerRack > 0) {
+      totalKW = racks * kwPerRack;
+    }
+
+    if (totalKW === null || isNaN(cat) || isNaN(maxOAT)) return { totalKW: null, totalBTUhr: null, deltaT: null, requiredCFM: null };
+
+    const totalBTUhr = totalKW * btuPerKW * utilizationFactor;
+    const deltaT = maxOAT - cat;
+    if (deltaT <= 0) return { totalKW, totalBTUhr, deltaT: null, requiredCFM: null };
+
+    const requiredCFM = totalBTUhr / (airFactor * deltaT);
+
+    return { totalKW, totalBTUhr, deltaT, requiredCFM };
+  }
+
+  let lastDetailsText = '';
+});
 </script>
 
 </body>
