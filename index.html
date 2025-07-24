@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Data Center Cooling Calculator with up.codes Links</title>
+<title>Data Center Cooling Calculator</title>
 
 <!-- Bootstrap CSS -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
@@ -30,7 +30,7 @@
     padding: 2rem;
     border-radius: 0 0 0.5rem 0.5rem;
     box-shadow: 0 12px 20px rgba(0,0,0,0.05);
-    min-height: 450px;
+    min-height: 480px;
   }
   pre#outputDetails {
     background-color: #f8f9fa;
@@ -134,7 +134,7 @@
         <label for="maxOAT" class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" title="Enter the maximum outdoor air temperature">Maximum Outdoor Air Temperature (Max OAT) °F:</label>
         <input type="number" class="form-control" id="maxOAT" placeholder="Enter hottest outdoor air temp" step="0.1" />
       </div>
-      <div id="warningMessage" style="display:none;"></div> <!-- Warning message container -->
+      <div id="warningMessage" style="display:none;"></div>
       <button class="btn btn-primary" id="showDetailsBtn">Show Calculation Details</button>
     </div>
 
@@ -224,6 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Tooltips init
   [...document.querySelectorAll('[data-bs-toggle="tooltip"]')].forEach(el => new bootstrap.Tooltip(el));
 
+  // Air Method & OAT input show/hide + warnings
   const airMethodSelect = document.getElementById('airMethod');
   const oatContainer = document.getElementById('oatInputContainer');
   const maxOATInput = document.getElementById('maxOAT');
@@ -260,6 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Known Inputs next button tab switch
   document.getElementById('nextButton').addEventListener('click', () => {
     const tabTrigger = new bootstrap.Tab(document.querySelector('#cooling-tab'));
     tabTrigger.show();
@@ -326,6 +328,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const cfm = totalBTU / (airFactor * deltaT);
     const tons = totalBTU / 12000;
 
+    // Chilled Water Sizing (GPM)
+    // Q = GPM * 500 * deltaT  => GPM = Q / (500 * deltaT)
+    const GPM = totalBTU / (500 * deltaT);
+
     return {
       airMethod,
       totalKW,
@@ -333,7 +339,8 @@ document.addEventListener('DOMContentLoaded', () => {
       deltaT,
       airFactor,
       cfm,
-      tons
+      tons,
+      GPM
     };
   }
 
@@ -376,9 +383,13 @@ document.addEventListener('DOMContentLoaded', () => {
     lines.push(`   Tons = Total BTU/hr ÷ 12,000`);
     lines.push(`   = ${res.totalBTU.toFixed(2)} ÷ 12,000 = ${res.tons.toFixed(2)} Tons`);
     lines.push("");
+    lines.push(`7. Calculate chilled water flow (GPM) using Q = GPM × 500 × ΔT:`);
+    lines.push(`   GPM = Q ÷ (500 × ΔT) = ${res.totalBTU.toFixed(2)} ÷ (500 × ${res.deltaT.toFixed(2)}) = ${res.GPM.toFixed(2)} GPM`);
+    lines.push("");
     lines.push("Sources:");
     lines.push("- 1 kW = 3412.14163 BTU/hr (standard conversion)");
     lines.push("- Air factor 1.08 = volumetric specific heat of air × density × 60 (cubic feet per minute)");
+    lines.push("- Chilled water flow calculated using constant 500 (water factor)");
     lines.push("- ASHRAE guidelines for data center thermal design");
     lines.push("");
     lines.push("Note: Load assumed at 80% of maximum rack power capacity.");
@@ -406,7 +417,8 @@ document.addEventListener('DOMContentLoaded', () => {
       ["Delta T (Temp difference)", calcResults.deltaT.toFixed(2), "°F", "Calculated"],
       ["Air factor constant", calcResults.airFactor, "", "Standard"],
       ["Required Airflow (CFM)", calcResults.cfm.toFixed(2), "CFM", "Calculated"],
-      ["Cooling Load (Tons)", calcResults.tons.toFixed(2), "Tons", "Calculated"]
+      ["Cooling Load (Tons)", calcResults.tons.toFixed(2), "Tons", "Calculated"],
+      ["Chilled Water Flow", calcResults.GPM.toFixed(2), "GPM", "Calculated using Q=GPM*500*ΔT"]
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
