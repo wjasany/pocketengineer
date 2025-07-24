@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Data Center Cooling Calculator</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 0; background: #f7f7f7;
+  }
+  header {
+    background: #007bff;
+    color: white;
+    padding: 15px 20px;
+    font-size: 24px;
+  }
+  .tabs {
+    display: flex;
+    background: #eee;
+    border-bottom: 1px solid #ccc;
+  }
+  .tab-button {
+    padding: 12px 20px;
+    cursor: pointer;
+    border: none;
+    background: #eee;
+    font-size: 16px;
+    transition: background 0.3s;
+    color: black; /* Make tab text black */
+  }
+  .tab-button:hover {
+    background: #ddd;
+  }
+  .tab-button.active {
+    background: white;
+    border-bottom: 3px solid #007bff;
+    font-weight: bold;
+    color: black; /* Ensure active tab text remains black */
+  }
+  .tab-content {
+    display: none;
+    padding: 20px;
+    background: white;
+    max-width: 700px;
+    margin: 20px auto;
+    border-radius: 8px;
+    box-shadow: 0 0 10px #ccc;
+  }
+  .tab-content.active {
+    display: block;
+  }
+  label {
+    display: block;
+    margin-top: 15px;
+    font-weight: bold;
+  }
+  input {
+    width: 100%;
+    padding: 8px;
+    margin-top: 5px;
+    box-sizing: border-box;
+  }
+  button {
+    margin-top: 20px;
+    padding: 10px 15px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  button:hover {
+    background: #0056b3;
+  }
+  pre {
+    margin-top: 20px;
+    white-space: pre-wrap;
+    font-family: monospace;
+    background: #f0f0f0;
+    padding: 15px;
+    border-radius: 6px;
+  }
+</style>
+</head>
+<body>
+
+<header>Data Center Cooling Calculator</header>
+
+<div class="tabs">
+  <button class="tab-button active" data-tab="crac">CRAC Method - 100% Recirculated Air</button>
+  <!-- Future tabs can be added here -->
+</div>
+
+<div id="crac" class="tab-content active">
+  <h2>CRAC Method - 100% Recirculated Air</h2>
+
+  <label for="utilityPower">Available Utility Power (kW):</label>
+  <input type="number" id="utilityPower" step="1" placeholder="e.g. 1500" />
+
+  <label for="hallSize">Size of Data Hall (sq ft):</label>
+  <input type="number" id="hallSize" step="1" placeholder="e.g. 10000" />
+
+  <label for="rackCount">Number of Racks:</label>
+  <input type="number" id="rackCount" step="1" placeholder="e.g. 50" />
+
+  <label for="kwPerRack">Desired kW per Rack:</label>
+  <input type="number" id="kwPerRack" step="0.1" placeholder="e.g. 15" />
+
+  <label for="hat">Hot Air Return Temperature (HAT) °F:</label>
+  <input type="number" id="hat" step="0.1" placeholder="e.g. 95" />
+
+  <label for="cat">Cold Aisle Supply Temperature (CAT) °F:</label>
+  <input type="number" id="cat" step="0.1" placeholder="e.g. 65" />
+
+  <button onclick="calculateCooling()">Calculate Cooling Load</button>
+
+  <pre id="output"></pre>
+</div>
+
+<script>
+  // Tab switching logic
+  document.querySelectorAll('.tab-button').forEach(button => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+
+      button.classList.add('active');
+      document.getElementById(button.getAttribute('data-tab')).classList.add('active');
+    });
+  });
+
+  // Cooling calculation with friendly explanation
+  function calculateCooling() {
+    const utility = parseFloat(document.getElementById('utilityPower').value);
+    const size = parseFloat(document.getElementById('hallSize').value);
+    const racks = parseInt(document.getElementById('rackCount').value);
+    const kwPerRack = parseFloat(document.getElementById('kwPerRack').value);
+    const hat = parseFloat(document.getElementById('hat').value);
+    const cat = parseFloat(document.getElementById('cat').value);
+
+    if (
+      isNaN(utility) || utility <= 0 ||
+      isNaN(size) || size <= 0 ||
+      isNaN(racks) || racks <= 0 ||
+      isNaN(kwPerRack) || kwPerRack <= 0 ||
+      isNaN(hat) || isNaN(cat) || hat <= cat
+    ) {
+      alert("⚠️ Please enter valid positive numbers and ensure Hot Air Return Temp is greater than Cold Aisle Supply Temp.");
+      return;
+    }
+
+    const deltaT = hat - cat; // °F temperature difference
+    const btuPerKW = 3412.14163; // 1 kilowatt = 3412.14163 BTU/hr
+    const utilizationFactor = 0.80; // Assume racks run at 80% capacity
+    const btuPerTon = 12000; // 1 ton of cooling = 12,000 BTU/hr
+    const airFactor = 1.08; // This is a constant used to relate airflow and heat transfer
+
+    // Step 1: Calculate total IT power load in kilowatts
+    const totalKW = racks * kwPerRack;
+
+    // Step 2: Convert total kW load to BTU per hour (a unit of heat energy)
+    const totalBTUhr = totalKW * btuPerKW;
+
+    // Step 3: Apply utilization factor to reflect actual running load
+    const effectiveBTUhr = totalBTUhr * utilizationFactor;
+
+    // Step 4: Convert heat load from BTU/hr to tons of cooling
+    const totalTons = effectiveBTUhr / btuPerTon;
+
+    // Step 5: Calculate airflow needed in cubic feet per minute (CFM)
+    // Formula: CFM = Heat Load (BTU/hr) divided by (Air Factor × Temperature Difference)
+    const requiredCFM = effectiveBTUhr / (airFactor * deltaT);
+
+    // Compose a friendly explanation string
+    const explanation = `
+Step-by-Step Cooling Load Calculation:
+
+1) Calculate Total IT Load:
+   Multiply the number of racks by the power each rack uses.
+   Total IT Load = ${racks} racks × ${kwPerRack.toFixed(1)} kW/rack = ${totalKW.toFixed(1)} kW
+
+2) Convert kW to BTU per hour:
+   Cooling is about removing heat, so we convert electrical power to heat units.
+   1 kW = 3412.14 BTU/hr
+   Total Heat Load = ${totalKW.toFixed(1)} × 3412.14 = ${totalBTUhr.toFixed(0)} BTU/hr
+
+3) Apply Utilization Factor:
+   Servers rarely run at full power all the time; we assume 80% average load.
+   Effective Heat Load = ${totalBTUhr.toFixed(0)} × 0.80 = ${effectiveBTUhr.toFixed(0)} BTU/hr
+
+4) Convert Heat Load to Tons of Cooling:
+   Cooling capacity is often measured in tons; 1 ton = 12,000 BTU/hr.
+   Cooling Required = ${effectiveBTUhr.toFixed(0)} / 12,000 = ${totalTons.toFixed(2)} tons
+
+5) Calculate Required Airflow (CFM):
+   Airflow needed to remove this heat depends on the temperature difference between hot air return and cold aisle supply.
+   Formula: CFM = Heat Load / (Air Factor × Delta T)
+   Air Factor = 1.08 (a constant based on air properties)
+   Delta T = ${deltaT.toFixed(1)} °F
+   Therefore:
+   CFM = ${effectiveBTUhr.toFixed(0)} / (1.08 × ${deltaT.toFixed(1)}) = ${requiredCFM.toFixed(0)} CFM
+
+This means you need about ${requiredCFM.toFixed(0)} cubic feet of air per minute flowing through your data center to properly cool your equipment at the given temperatures.
+`;
+
+    document.getElementById('output').textContent = explanation;
+  }
+</script>
+
+</body>
+</html>
